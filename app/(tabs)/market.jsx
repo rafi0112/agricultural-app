@@ -1,40 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, Image, StyleSheet, RefreshControl, Button, Dimensions } from 'react-native';
-import { PieChart } from 'react-native-chart-kit'; // Import PieChart
+import { 
+  View, 
+  Text, 
+  FlatList, 
+  Image, 
+  StyleSheet, 
+  RefreshControl, 
+  TouchableOpacity, 
+  Dimensions,
+  Animated,
+  ActivityIndicator
+} from 'react-native';
+import { PieChart } from 'react-native-chart-kit';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { productsCol, shopsCol } from './firebaseConfig';
 import { onSnapshot, query } from 'firebase/firestore';
-import { useAuth } from './AuthContext'; // Import AuthContext to get the logout function
+import { useAuth } from './AuthContext';
 
-export default function MarketScreen() {
-  const { currentUser, logout } = useAuth(); // Get the current farmer's name and logout function
+export default function MarketScreen({ navigation }) {
+  const { currentUser, logout } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [chartData, setChartData] = useState([]); // State for pie chart data
-  const [shopDetails, setShopDetails] = useState({}); // Store shop details (name and location)
+  const [chartData, setChartData] = useState([]);
+  const [shopDetails, setShopDetails] = useState({});
+  const fadeAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
     const fetchShopsAndProducts = () => {
-      const qShops = query(shopsCol); // Fetch all shops
-      const qProducts = query(productsCol); // Fetch all products
-
-      const shopsData = {}; // Initialize shopsData at a higher scope
+      const qShops = query(shopsCol);
+      const qProducts = query(productsCol);
+      const shopsData = {};
 
       const unsubscribeShops = onSnapshot(qShops, (snapshot) => {
-        if (snapshot.empty) {
-          console.log('No shops found in Firestore.');
-          setChartData([]);
-          setLoading(false);
-          return;
-        }
-
         snapshot.docs.forEach((doc) => {
           shopsData[doc.id] = {
             name: doc.data().name || 'Unknown Shop',
             location: doc.data().location || 'Unknown Location',
           };
         });
-        setShopDetails(shopsData); // Update shop details
+        setShopDetails(shopsData);
       });
 
       const unsubscribeProducts = onSnapshot(qProducts, (snapshot) => {
@@ -43,7 +48,6 @@ export default function MarketScreen() {
           ...doc.data(),
         }));
 
-        // Group products by shop ID
         const groupedProducts = {};
         productsData.forEach((product) => {
           const shopId = product.shopId;
@@ -53,19 +57,24 @@ export default function MarketScreen() {
           groupedProducts[shopId] += 1;
         });
 
-        // Prepare data for the pie chart
         const pieData = Object.keys(groupedProducts).map((shopId) => ({
           name: shopsData[shopId]?.name || 'Unknown Shop',
           count: groupedProducts[shopId],
-          color: `#${Math.floor(Math.random() * 16777215).toString(16)}`, // Random color
-          legendFontColor: '#333',
-          legendFontSize: 14,
+          color: getRandomColor(),
+          legendFontColor: '#7F7F7F',
+          legendFontSize: 12,
         }));
         setChartData(pieData);
-
         setProducts(productsData);
         setLoading(false);
         setRefreshing(false);
+        
+        // Fade in animation
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
       });
 
       return () => {
@@ -77,150 +86,274 @@ export default function MarketScreen() {
     fetchShopsAndProducts();
   }, []);
 
+  const getRandomColor = () => {
+    const colors = [
+      '#4CAF50', '#2196F3', '#FF9800', '#9C27B0', 
+      '#3F51B5', '#009688', '#FF5722', '#607D8B'
+    ];
+    return colors[Math.floor(Math.random() * colors.length)];
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
-    // The useEffect will handle the refresh automatically
+    fadeAnim.setValue(0);
   };
+
+  const renderProductItem = ({ item }) => (
+    <Animated.View 
+      style={[styles.productCard, { opacity: fadeAnim }]}
+    >
+      <Image
+        source={{ uri: item.image || 'https://via.placeholder.com/150' }}
+        style={styles.productImage}
+      />
+      <View style={styles.productInfo}>
+        <Text style={styles.productName}>{item.name}</Text>
+        <Text style={styles.productPrice}>৳{item.price}/{item.unit}</Text>
+        <View style={styles.shopInfo}>
+          <MaterialIcons name="store" size={16} color="#7F7F7F" />
+          <Text style={styles.productShop}>
+            {shopDetails[item.shopId]?.name || 'Unknown Shop'}
+          </Text>
+        </View>
+        <View style={styles.locationInfo}>
+          <MaterialIcons name="location-on" size={16} color="#7F7F7F" />
+          <Text style={styles.productLocation}>
+            {shopDetails[item.shopId]?.location || 'Unknown Location'}
+          </Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading data...</Text>
+        <ActivityIndicator size="large" color="#4CAF50" />
       </View>
     );
   }
 
   return (
-    <FlatList
-      data={products}
-      keyExtractor={(item) => item.id}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      ListHeaderComponent={
-        <>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.farmerName}>Welcome, {currentUser?.displayName || 'Farmer'}!</Text>
-            <Button title="Logout" onPress={logout} color="#FF6347" />
-          </View>
-
-          {/* Pie Chart */}
-          <Text style={styles.chartTitle}>Products & shop statistics</Text>
-          <PieChart
-            data={chartData}
-            width={Dimensions.get('window').width - 40} // Full width minus padding
-            height={220}
-            chartConfig={{
-              backgroundColor: '#1cc910',
-              backgroundGradientFrom: '#ff9ff3',
-              backgroundGradientTo: '#feca57',
-              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-            }}
-            accessor="count"
-            backgroundColor="transparent"
-            paddingLeft="15"
-            absolute // Show absolute values
-          />
-
-          {/* Section Title */}
-          <Text style={styles.sectionTitle}>All Products</Text>
-        </>
-      }
-      renderItem={({ item }) => (
-        <View style={styles.productCard}>
-          <Image
-            source={{ uri: item.image || 'https://via.placeholder.com/150' }}
-            style={styles.productImage}
-          />
-          <View style={styles.productInfo}>
-            <Text style={styles.productName}>{item.name}</Text>
-            <Text style={styles.productPrice}>৳{item.price}/{item.unit}</Text>
-            <Text style={styles.productShop}>
-              {shopDetails[item.shopId]?.name || 'Unknown Shop'}, {shopDetails[item.shopId]?.location || 'Unknown Location'}
-            </Text>
-          </View>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcomeText}>Welcome back,</Text>
+          <Text style={styles.farmerName}>{currentUser?.displayName || 'Farmer'}</Text>
         </View>
-      )}
-      contentContainerStyle={styles.listContainer}
-    />
+        <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+          <Ionicons name="log-out-outline" size={24} color="#FF6347" />
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        data={products}
+        keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh}
+            colors={['#4CAF50']}
+            tintColor="#4CAF50"
+          />
+        }
+        ListHeaderComponent={
+          <>
+            {/* Statistics Card */}
+            <View style={styles.statsCard}>
+              <Text style={styles.statsTitle}>Market Overview</Text>
+              <PieChart
+                data={chartData}
+                width={Dimensions.get('window').width - 40}
+                height={200}
+                chartConfig={{
+                  backgroundColor: '#FFFFFF',
+                  backgroundGradientFrom: '#FFFFFF',
+                  backgroundGradientTo: '#FFFFFF',
+                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                }}
+                accessor="count"
+                backgroundColor="transparent"
+                paddingLeft="15"
+                absolute
+                hasLegend={false}
+              />
+              <View style={styles.legendContainer}>
+                {chartData.map((item, index) => (
+                  <View key={index} style={styles.legendItem}>
+                    <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                    <Text style={styles.legendText}>{item.name} ({item.count})</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Products Title */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Available Products</Text>
+              <Text style={styles.productCount}>{products.length} items</Text>
+            </View>
+          </>
+        }
+        renderItem={renderProductItem}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+        ListFooterComponent={<View style={styles.footerSpacer} />} // Add this
+      />
+    </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#F9F9F9',
+    paddingTop: 50,
+  },
+  footerSpacer: {
+    height: 80, // Adjust this value based on your navbar height
+  },
+  listContainer: {
+    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginTop: 60,
-    marginBottom: 20,
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  welcomeText: {
+    fontSize: 14,
+    color: '#7F7F7F',
   },
   farmerName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#333fef',
+    color: '#333',
+  },
+  logoutButton: {
+    padding: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: '#F9F9F9',
   },
-  listContainer: {
-    paddingBottom: 20,
-  },
-  chartTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10,
-    color: '#333',
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginVertical: 20,
-    textAlign: 'center',
-    color: '#4CAF50',
-  },
-  productCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
+  statsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 6,
     elevation: 3,
+  },
+  statsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  legendColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 6,
+  },
+  legendText: {
+    fontSize: 12,
+    color: '#7F7F7F',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  productCount: {
+    fontSize: 14,
+    color: '#7F7F7F',
+  },
+  listContainer: {
+    paddingBottom: 24,
+  },
+  productCard: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   productImage: {
     width: 80,
     height: 80,
     borderRadius: 8,
-    marginRight: 15,
+    marginRight: 16,
   },
   productInfo: {
     flex: 1,
   },
   productName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#333',
+    marginBottom: 8,
   },
   productPrice: {
     fontSize: 16,
+    fontWeight: 'bold',
     color: '#4CAF50',
-    marginTop: 5,
+    marginBottom: 8,
+  },
+  shopInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  locationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   productShop: {
     fontSize: 14,
-    color: '#777',
-    marginTop: 5,
+    color: '#7F7F7F',
+    marginLeft: 4,
+  },
+  productLocation: {
+    fontSize: 12,
+    color: '#7F7F7F',
+    marginLeft: 4,
   },
 });
