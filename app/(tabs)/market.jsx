@@ -142,9 +142,9 @@ export default function MarketScreen({ navigation }) {
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.farmerName}>{currentUser?.displayName || 'Farmer'}</Text>
         </View>
-        <TouchableOpacity onPress={logout} style={styles.logoutButton}>
+        {/* <TouchableOpacity onPress={logout} style={styles.logoutButton}>
           <Ionicons name="log-out-outline" size={24} color="#FF6347" />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <FlatList

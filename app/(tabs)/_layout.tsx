@@ -6,6 +6,7 @@ import MarketScreen from './market';
 import ShopScreen from './shop';
 import OrdersScreen from './orders';
 import BlogsScreen from './BlogsScreen';
+import ProfileScreen from './ProfileScreen'
 import { AuthProvider } from './AuthContext';
 import ProtectedRoute from '../../components/ProtectedRoute';
 
@@ -51,6 +52,13 @@ export default function AppNavigator() {
                       color={iconColor} 
                     />
                   )}
+                  {route.name === 'profile' && (
+                    <Ionicons 
+                      name={focused ? 'people' : 'people-outline'} 
+                      size={iconSize} 
+                      color={iconColor} 
+                    />
+                  )}
                 </View>
               );
             },
@@ -70,6 +78,7 @@ export default function AppNavigator() {
           <Tab.Screen name="My Shop" component={ShopScreen} />
           <Tab.Screen name="Orders" component={OrdersScreen} />
           <Tab.Screen name="Blogs" component={BlogsScreen} />
+          <Tab.Screen name="profile" component={ProfileScreen} />
         </Tab.Navigator>
       </ProtectedRoute>
     </AuthProvider>
