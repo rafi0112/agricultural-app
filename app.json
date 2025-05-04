@@ -15,7 +15,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.anonymous.appagri"
     },
     "web": {
       "bundler": "metro",
@@ -24,6 +25,7 @@
     },
     "plugins": [
       "expo-router",
+      
       [
         "expo-splash-screen",
         {

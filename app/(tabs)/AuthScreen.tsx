@@ -72,7 +72,7 @@ const AuthScreen = () => {
         <View style={styles.appIcon}>
           <Feather name="shopping-cart" size={48} color="#4CAF50" />
         </View>
-        <Text style={styles.title}>{isRegistering ? 'Create Account' : 'Welcome Back'}</Text>
+        <Text style={styles.title}>{isRegistering ? 'Create Account' : 'Krishiconnect'}</Text>
       </View>
 
       <Animated.View 
