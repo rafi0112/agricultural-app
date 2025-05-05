@@ -296,6 +296,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
     backgroundColor: "#f8f9fa",
+    
   },
   screenTitle: {
     fontSize: 24,
@@ -472,6 +473,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+    
   },
 });
 
