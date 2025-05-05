@@ -9,21 +9,27 @@ import {
   TouchableOpacity, 
   Dimensions,
   Animated,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal,
+  Pressable
 } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons, Feather } from '@expo/vector-icons';
 import { productsCol, shopsCol } from './firebaseConfig';
-import { onSnapshot, query } from 'firebase/firestore';
+import { onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
 export default function MarketScreen({ navigation }) {
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [chartData, setChartData] = useState([]);
   const [shopDetails, setShopDetails] = useState({});
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [selectedType, setSelectedType] = useState('all');
+  const [availableTypes, setAvailableTypes] = useState([]);
   const fadeAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -48,6 +54,11 @@ export default function MarketScreen({ navigation }) {
           ...doc.data(),
         }));
 
+        // Extract all unique product types
+        const types = [...new Set(productsData.map(product => product.type))];
+        setAvailableTypes(['all', ...types]);
+
+        // Group products by shop for the pie chart
         const groupedProducts = {};
         productsData.forEach((product) => {
           const shopId = product.shopId;
@@ -64,8 +75,10 @@ export default function MarketScreen({ navigation }) {
           legendFontColor: '#7F7F7F',
           legendFontSize: 12,
         }));
+        
         setChartData(pieData);
         setProducts(productsData);
+        setFilteredProducts(productsData); // Initially show all products
         setLoading(false);
         setRefreshing(false);
         
@@ -99,10 +112,19 @@ export default function MarketScreen({ navigation }) {
     fadeAnim.setValue(0);
   };
 
+  const applyFilter = (type) => {
+    setSelectedType(type);
+    if (type === 'all') {
+      setFilteredProducts(products);
+    } else {
+      const filtered = products.filter(product => product.type === type);
+      setFilteredProducts(filtered);
+    }
+    setFilterModalVisible(false);
+  };
+
   const renderProductItem = ({ item }) => (
-    <Animated.View 
-      style={[styles.productCard, { opacity: fadeAnim }]}
-    >
+    <Animated.View style={[styles.productCard, { opacity: fadeAnim }]}>
       <Image
         source={{ uri: item.image || 'https://via.placeholder.com/150' }}
         style={styles.productImage}
@@ -110,6 +132,9 @@ export default function MarketScreen({ navigation }) {
       <View style={styles.productInfo}>
         <Text style={styles.productName}>{item.name}</Text>
         <Text style={styles.productPrice}>৳{item.price}/{item.unit}</Text>
+        <View style={styles.typeBadge}>
+          <Text style={styles.typeText}>{item.type}</Text>
+        </View>
         <View style={styles.shopInfo}>
           <MaterialIcons name="store" size={16} color="#7F7F7F" />
           <Text style={styles.productShop}>
@@ -142,13 +167,56 @@ export default function MarketScreen({ navigation }) {
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.farmerName}>{currentUser?.displayName || 'Farmer'}</Text>
         </View>
-        {/* <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-          <Ionicons name="log-out-outline" size={24} color="#FF6347" />
-        </TouchableOpacity> */}
+        <TouchableOpacity 
+          onPress={() => setFilterModalVisible(true)}
+          style={styles.filterButton}
+        >
+          <Feather name="filter" size={24} color="#4CAF50" />
+        </TouchableOpacity>
       </View>
 
+      {/* Filter Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={filterModalVisible}
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>Filter Products</Text>
+            {availableTypes.map((type, index) => (
+              <Pressable
+                key={index}
+                style={[
+                  styles.filterOption,
+                  selectedType === type && styles.selectedFilterOption
+                ]}
+                onPress={() => applyFilter(type)}
+              >
+                <Text style={[
+                  styles.filterOptionText,
+                  selectedType === type && styles.selectedFilterOptionText
+                ]}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </Text>
+                {selectedType === type && (
+                  <Feather name="check" size={20} color="#4CAF50" />
+                )}
+              </Pressable>
+            ))}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setFilterModalVisible(false)}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <FlatList
-        data={products}
+        data={filteredProducts}
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl 
@@ -162,7 +230,12 @@ export default function MarketScreen({ navigation }) {
           <>
             {/* Statistics Card */}
             <View style={styles.statsCard}>
-              <Text style={styles.statsTitle}>Market Overview</Text>
+              <View style={styles.statsHeader}>
+                <Text style={styles.statsTitle}>Market Overview</Text>
+                {/* <Text style={styles.filterIndicator}>
+                  Showing: {selectedType === 'all' ? 'All Products' : selectedType}
+                </Text> */}
+              </View>
               <PieChart
                 data={chartData}
                 width={Dimensions.get('window').width - 40}
@@ -193,19 +266,25 @@ export default function MarketScreen({ navigation }) {
             {/* Products Title */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Available Products</Text>
-              <Text style={styles.productCount}>{products.length} items</Text>
+              
+              <Text style={styles.productCount}>{filteredProducts.length} items</Text>
+              
+            </View>
+            <View>
+            <Text style={styles.filterIndicator}>
+                  Showing: {selectedType === 'all' ? 'All Products' : selectedType}
+            </Text>
             </View>
           </>
         }
         renderItem={renderProductItem}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
-        ListFooterComponent={<View style={styles.footerSpacer} />} // Add this
+        ListFooterComponent={<View style={styles.footerSpacer} />}
       />
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -214,7 +293,7 @@ const styles = StyleSheet.create({
     paddingTop: 50,
   },
   footerSpacer: {
-    height: 80, // Adjust this value based on your navbar height
+    height: 80,
   },
   listContainer: {
     paddingBottom: 24,
@@ -235,7 +314,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
-  logoutButton: {
+  filterButton: {
     padding: 8,
   },
   loadingContainer: {
@@ -256,11 +335,23 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
+  statsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   statsTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 16,
+  },
+  filterIndicator: {
+    fontSize: 14,
+    color: '#4CAF50',
+    fontStyle: 'italic',
+    marginLeft: 25,
+    marginBottom: 25,
   },
   legendContainer: {
     flexDirection: 'row',
@@ -300,9 +391,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7F7F7F',
   },
-  listContainer: {
-    paddingBottom: 24,
-  },
   productCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -337,6 +425,19 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     marginBottom: 8,
   },
+  typeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  typeText: {
+    fontSize: 12,
+    color: '#2196F3',
+    fontWeight: '500',
+  },
   shopInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -355,5 +456,67 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#7F7F7F',
     marginLeft: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalView: {
+    width: '80%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#333',
+  },
+  filterOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+  },
+  selectedFilterOption: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#4CAF50',
+    borderWidth: 1,
+  },
+  filterOptionText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  selectedFilterOptionText: {
+    color: '#4CAF50',
+    fontWeight: '500',
+  },
+  closeButton: {
+    marginTop: 20,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
   },
 });
