@@ -11,12 +11,15 @@ export interface Product {
 }
 
 export interface Shop {
-    id: string;
-    name: string;
-    ownerId: string;
-    password: string;
-    location: string;
-    createdAt: Date;
+  id: string;
+  name: string;
+  ownerId: string;
+  password: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+  createdAt: Date;
 }
 
 export interface Order {
@@ -45,3 +48,23 @@ export interface Blog {
     authorName: string;
     createdAt: Date;
 }
+
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+export type RootStackParamList = {
+  Market: undefined;
+  'My Shop': undefined;
+  Orders: undefined;
+  Blogs: undefined;
+  profile: undefined;
+  Map: {
+    shopId: string;
+    readOnly?: boolean;
+    initialLocation?: {
+      latitude: number;
+      longitude: number;
+    };
+  };
+};
+
+export type NavigationProp = NativeStackNavigationProp<RootStackParamList>;

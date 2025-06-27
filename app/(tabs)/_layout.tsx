@@ -9,79 +9,113 @@ import BlogsScreen from './BlogsScreen';
 import ProfileScreen from './ProfileScreen'
 import { AuthProvider } from './AuthContext';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import MapScreen from './MapScreen';
+import { createStackNavigator } from '@react-navigation/stack';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   return (
     <AuthProvider>
       <ProtectedRoute>
-        <Tab.Navigator
-          screenOptions={({ route }) => ({
-            tabBarIcon: ({ focused, color, size }) => {
-              const iconSize = 24;
-              const iconColor = focused ? '#4CAF50' : '#95a5a6';
-
-              return (
-                <View style={[styles.iconContainer]}>
-                  {route.name === 'Market' && (
-                    <MaterialCommunityIcons 
-                      name={focused ? 'shopping' : 'shopping-outline'} 
-                      size={iconSize} 
-                      color={iconColor} 
-                    />
-                  )}
-                  {route.name === 'My Shop' && (
-                    <FontAwesome5 
-                      name={focused ? 'store-alt' : 'store'} 
-                      size={iconSize} 
-                      color={iconColor} 
-                    />
-                  )}
-                  {route.name === 'Orders' && (
-                    <Ionicons 
-                      name={focused ? 'receipt' : 'receipt-outline'} 
-                      size={iconSize} 
-                      color={iconColor} 
-                    />
-                  )}
-                  {route.name === 'Blogs' && (
-                    <Ionicons 
-                      name={focused ? 'newspaper' : 'newspaper-outline'} 
-                      size={iconSize} 
-                      color={iconColor} 
-                    />
-                  )}
-                  {route.name === 'profile' && (
-                    <Ionicons 
-                      name={focused ? 'people' : 'people-outline'} 
-                      size={iconSize} 
-                      color={iconColor} 
-                    />
-                  )}
-                </View>
-              );
-            },
-            tabBarLabel: ({ focused, color }) => {
-              let labelColor = focused ? '#4CAF50' : '#95a5a6';
-              return (
-                <Text style={[styles.label, { color: labelColor }]}>
-                  {route.name}
-                </Text>
-              );
-            },
-            tabBarStyle: styles.tabBar,
-            headerShown: false,
-          })}
-        >
-          <Tab.Screen name="Market" component={MarketScreen} />
-          <Tab.Screen name="My Shop" component={ShopScreen} />
-          <Tab.Screen name="Orders" component={OrdersScreen} />
-          <Tab.Screen name="Blogs" component={BlogsScreen} />
-          <Tab.Screen name="profile" component={ProfileScreen} />
-        </Tab.Navigator>
+        <Stack.Navigator>
+          <Stack.Screen 
+            name="TabNavigator" 
+            component={TabNavigator} 
+            options={{ headerShown: false }} 
+          />
+          <Stack.Screen 
+            name="Map" 
+            component={MapScreen}
+            options={{
+              title: 'Location',
+              headerStyle: {
+                backgroundColor: '#4CAF50',
+              },
+              headerTintColor: '#fff',
+            }}
+          />
+        </Stack.Navigator>
       </ProtectedRoute>
     </AuthProvider>
+  );
+}
+
+// Create a separate TabNavigator component
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          const iconSize = 24;
+          const iconColor = focused ? '#4CAF50' : '#95a5a6';
+
+          return (
+            <View style={[styles.iconContainer]}>
+              {route.name === 'Market' && (
+                <MaterialCommunityIcons 
+                  name={focused ? 'shopping' : 'shopping-outline'} 
+                  size={iconSize} 
+                  color={iconColor} 
+                />
+              )}
+              {route.name === 'My Shop' && (
+                <FontAwesome5 
+                  name={focused ? 'store-alt' : 'store'} 
+                  size={iconSize} 
+                  color={iconColor} 
+                />
+              )}
+              {route.name === 'Orders' && (
+                <Ionicons 
+                  name={focused ? 'receipt' : 'receipt-outline'} 
+                  size={iconSize} 
+                  color={iconColor} 
+                />
+              )}
+              {route.name === 'Blogs' && (
+                <Ionicons 
+                  name={focused ? 'newspaper' : 'newspaper-outline'} 
+                  size={iconSize} 
+                  color={iconColor} 
+                />
+              )}
+              {route.name === 'profile' && (
+                <Ionicons 
+                  name={focused ? 'people' : 'people-outline'} 
+                  size={iconSize} 
+                  color={iconColor} 
+                />
+              )}
+              {route.name === 'Map' && (
+                <MaterialCommunityIcons 
+                  name={focused ? 'map-marker' : 'map-marker-outline'} 
+                  size={iconSize} 
+                  color={iconColor} 
+                />
+              )}
+            </View>
+          );
+        },
+        tabBarLabel: ({ focused, color }) => {
+          let labelColor = focused ? '#4CAF50' : '#95a5a6';
+          return (
+            <Text style={[styles.label, { color: labelColor }]}>
+              {route.name}
+            </Text>
+          );
+        },
+        tabBarStyle: styles.tabBar,
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Market" component={MarketScreen} />
+      <Tab.Screen name="My Shop" component={ShopScreen} />
+      <Tab.Screen name="Orders" component={OrdersScreen} />
+      <Tab.Screen name="Blogs" component={BlogsScreen} />
+      <Tab.Screen name="profile" component={ProfileScreen} />
+    </Tab.Navigator>
   );
 }
 

@@ -24,10 +24,11 @@ import { db, shopsCol, productsCol } from "./firebaseConfig";
 import { doc, addDoc, query, where, onSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
 import SafeScreen from "./SafeScreen";
 import { useAuth } from "./AuthContext";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const IMGBB_API_KEY = "ebf4210f4e5360adbcce60890e45a46d"; // Replace with your actual ImgBB API key
 
-const ShopScreen = () => {
+const ShopScreen = ({ navigation }: { navigation: any }) => {
   const { currentUser } = useAuth();
   const [shops, setShops] = useState<{ id: string; name: string; farmerId: string }[]>([]);
   const [selectedShop, setSelectedShop] = useState<{ id: string; name: string } | null>(null);
@@ -38,6 +39,7 @@ const ShopScreen = () => {
     image: "",
     unit: "kg",
     type: "vegetable",
+    stock: "",
   });
   const [editingProduct, setEditingProduct] = useState<{
     id: string;
@@ -46,6 +48,7 @@ const ShopScreen = () => {
     image: string;
     unit: string;
     type: string;
+    stock: string;
   } | null>(null);
   const [products, setProducts] = useState<{ 
     id: string; 
@@ -56,6 +59,7 @@ const ShopScreen = () => {
     type: string;
     shopId: string;
     farmerId: string;
+    stock: number;
   }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -167,6 +171,7 @@ const ShopScreen = () => {
           type: string;
           shopId: string;
           farmerId: string;
+          stock: number;
         }) 
       }));
       setProducts(productsData);
@@ -199,7 +204,7 @@ const ShopScreen = () => {
   };
 
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.price) {
+    if (!newProduct.name || !newProduct.price || !newProduct.stock) {
       Alert.alert("Error", "Please fill all required fields");
       return;
     }
@@ -213,11 +218,12 @@ const ShopScreen = () => {
       await addDoc(productsCol, {
         ...newProduct,
         price: parseFloat(newProduct.price),
+        stock: parseInt(newProduct.stock),
         shopId: selectedShop.id,
         farmerId: currentUser.uid,
         createdAt: new Date(),
       });
-      setNewProduct({ name: "", price: "", image: "", unit: "kg", type: "vegetable" });
+      setNewProduct({ name: "", price: "", image: "", unit: "kg", type: "vegetable", stock: "" });
       Alert.alert("Success", "Product added successfully!");
     } catch (error) {
       console.error("Error adding product:", error);
@@ -226,7 +232,7 @@ const ShopScreen = () => {
   };
 
   const handleUpdateProduct = async () => {
-    if (!editingProduct || !editingProduct.id || !editingProduct.name || !editingProduct.price) {
+    if (!editingProduct || !editingProduct.id || !editingProduct.name || !editingProduct.price || !editingProduct.stock) {
       Alert.alert("Error", "Please fill all required fields");
       return;
     }
@@ -236,6 +242,7 @@ const ShopScreen = () => {
       await updateDoc(productRef, {
         name: editingProduct.name,
         price: parseFloat(editingProduct.price),
+        stock: parseInt(editingProduct.stock),
         image: editingProduct.image,
         unit: editingProduct.unit,
         type: editingProduct.type,
@@ -328,20 +335,40 @@ const ShopScreen = () => {
       image: product.image || "",
       unit: product.unit,
       type: product.type,
+      stock: product.stock?.toString() || "0",
     });
     setModalVisible(true);
   };
 
-  const renderShopItem = ({ item }: { item: { id: string; name: string } }) => (
+  const handleUpdateLocation = (shopId: string) => {
+    navigation.navigate('Map', { 
+      shopId: shopId
+    });
+  };
+
+  const renderShopItem = ({ item }: { item: { id: string; name: string; location?: { latitude: number; longitude: number } } }) => (
     <TouchableOpacity 
       style={styles.shopCard}
       onPress={() => setSelectedShop(item)}
     >
-      <View style={styles.shopIcon}>
-        <MaterialIcons name="storefront" size={24} color="#4CAF50" />
+      <View style={styles.shopInfo}>
+        <View style={styles.shopIcon}>
+          <MaterialIcons name="storefront" size={24} color="#4CAF50" />
+        </View>
+        <Text style={styles.shopName}>{item.name}</Text>
       </View>
-      <Text style={styles.shopName}>{item.name}</Text>
-      <Ionicons name="chevron-forward" size={20} color="#95a5a6" />
+      
+      <View style={styles.shopActions}>
+        <TouchableOpacity 
+          style={styles.locationButton}
+          onPress={() => handleUpdateLocation(item.id)}
+        >
+          <MaterialCommunityIcons name="map-marker" size={20} color="#2196F3" />
+          <Text style={styles.locationButtonText}>
+            {item.location ? 'Update Location' : 'Set Location'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
   );
 
@@ -352,33 +379,60 @@ const ShopScreen = () => {
     image?: string; 
     unit: string;
     type: string;
-  } }) => (
-    <Animated.View style={[styles.productCard, { opacity: fadeAnim }]}>
-      <Image
-        source={{ uri: item.image || 'https://via.placeholder.com/150' }}
-        style={styles.productImage}
-      />
-      <View style={styles.productInfo}>
-        <Text style={styles.productName}>{item.name}</Text>
-        <Text style={styles.productPrice}>৳{item.price}/{item.unit}</Text>
-        <Text style={styles.productType}>Type: {item.type}</Text>
-      </View>
-      <View style={styles.productActions}>
-        <TouchableOpacity onPress={() => openEditModal(item)}>
-          <Feather name="edit" size={20} color="#3498db" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => handleDeleteProduct(item.id)}>
-          <AntDesign name="delete" size={20} color="#e74c3c" />
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
+    stock: number;
+  } }) => {
+    const stockLevel = item.stock || 0;
+    const isLowStock = stockLevel < 10;
+    const cardBackgroundStyle = isLowStock 
+      ? styles.lowStockCard 
+      : styles.normalStockCard;
+
+    return (
+      <Animated.View style={[styles.productCard, cardBackgroundStyle, { opacity: fadeAnim }]}>
+        <Image
+          source={{ uri: item.image || 'https://via.placeholder.com/150' }}
+          style={styles.productImage}
+        />
+        <View style={styles.productInfo}>
+          <Text style={styles.productName}>{item.name}</Text>
+          <Text style={styles.productPrice}>৳{item.price}/{item.unit}</Text>
+          <Text style={styles.productType}>Type: {item.type}</Text>
+          <View style={styles.stockContainer}>
+            <MaterialIcons 
+              name="inventory-2" 
+              size={14} 
+              color={isLowStock ? "#dc3545" : "#28a745"} 
+            />
+            <Text style={[
+              styles.productStock, 
+              { color: isLowStock ? "#dc3545" : "#28a745", fontSize: 12 }
+            ]}>
+              Stock: {stockLevel}
+            </Text>
+          </View>
+          {isLowStock && (
+            <View style={styles.lowStockRow}>
+              <Text style={styles.lowStockWarning}>⚠️ Low Stock Alert</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.productActions}>
+          <TouchableOpacity onPress={() => openEditModal(item)}>
+            <Feather name="edit" size={20} color="#3498db" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleDeleteProduct(item.id)}>
+            <AntDesign name="delete" size={20} color="#e74c3c" />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    );
+  };
 
   if (loading) {
     return (
       <SafeScreen>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color="#059669" />
           <Text style={styles.loadingText}>Loading your shops...</Text>
         </View>
       </SafeScreen>
@@ -399,8 +453,8 @@ const ShopScreen = () => {
             <RefreshControl 
               refreshing={refreshing} 
               onRefresh={onRefresh}
-              colors={['#4CAF50']}
-              tintColor="#4CAF50"
+              colors={['#059669']}
+              tintColor="#059669"
             />
           }
         >
@@ -435,24 +489,26 @@ const ShopScreen = () => {
             {lineChartData.labels.length > 1 ? (
               <LineChart
                 data={lineChartData}
-                width={Dimensions.get("window").width - 64}
-                height={220}
+                width={Dimensions.get("window").width - 80}
+                height={240}
                 chartConfig={{
                   backgroundColor: "#FFFFFF",
                   backgroundGradientFrom: "#FFFFFF",
                   backgroundGradientTo: "#FFFFFF",
                   decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  color: (opacity = 1) => `rgba(5, 150, 105, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(30, 41, 59, ${opacity})`,
                   propsForDots: {
-                    r: "6",
-                    strokeWidth: "2",
-                    stroke: "#4CAF50",
+                    r: "8",
+                    strokeWidth: "3",
+                    stroke: "#059669",
+                    fill: "#059669",
                   },
+                  strokeWidth: 3,
                 }}
                 bezier
                 style={{
-                  borderRadius: 16,
+                  borderRadius: 20,
                 }}
               />
             ) : (
@@ -472,7 +528,7 @@ const ShopScreen = () => {
     <SafeScreen style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => setSelectedShop(null)} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#4CAF50" />
+          <Ionicons name="arrow-back" size={24} color="#059669" />
         </TouchableOpacity>
         <Text style={styles.farmerName}>{selectedShop.name}</Text>
         <View style={{ width: 24 }} />
@@ -485,8 +541,8 @@ const ShopScreen = () => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh}
-            colors={['#4CAF50']}
-            tintColor="#4CAF50"
+            colors={['#059669']}
+            tintColor="#059669"
           />
         }
       >
@@ -509,6 +565,17 @@ const ShopScreen = () => {
               keyboardType="numeric"
               value={newProduct.price}
               onChangeText={(text) => setNewProduct({ ...newProduct, price: text })}
+              style={styles.input}
+              placeholderTextColor="#95a5a6"
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <MaterialIcons name="inventory" size={20} color="#7F7F7F" style={styles.inputIcon} />
+            <TextInput
+              placeholder="Stock Quantity"
+              keyboardType="numeric"
+              value={newProduct.stock}
+              onChangeText={(text) => setNewProduct({ ...newProduct, stock: text })}
               style={styles.input}
               placeholderTextColor="#95a5a6"
             />
@@ -577,33 +644,66 @@ const ShopScreen = () => {
         <Text style={styles.sectionTitle}>Your Products ({products.length})</Text>
         {products.length > 0 ? (
           <View style={styles.productsContainer}>
-            {products.map((product) => (
-              <View key={product.id} style={styles.productCard}>
-                <Image
-                  source={{ uri: product.image || 'https://via.placeholder.com/150' }}
-                  style={styles.productImage}
-                />
-                <View style={styles.productDetails}>
-                  <Text style={styles.productName}>{product.name}</Text>
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.productPrice}>৳{product.price}</Text>
-                    <Text style={styles.productUnit}>/{product.unit}</Text>
+            {products.map((product) => {
+              // Determine background color based on stock level
+              const stockLevel = product.stock || 0;
+              const isLowStock = stockLevel < 10;
+              const cardBackgroundStyle = isLowStock 
+                ? styles.lowStockCard 
+                : styles.normalStockCard;
+
+              return (
+                <View key={product.id} style={[styles.productCard, cardBackgroundStyle]}>
+                  <Image
+                    source={{ uri: product.image || 'https://via.placeholder.com/150' }}
+                    style={styles.productImage}
+                  />
+                  <View style={styles.productDetails}>
+                    <Text style={styles.productName}>{product.name}</Text>
+                    <View style={styles.priceContainer}>
+                      <Text style={styles.productPrice}>৳{product.price}</Text>
+                      <Text style={styles.productUnit}>/{product.unit}</Text>
+                    </View>
+                    <View style={styles.productMeta}>
+                      <Text style={styles.productType}>Type: {product.type}</Text>
+                      <View style={styles.stockContainer}>
+                        <MaterialIcons 
+                          name="inventory-2" 
+                          size={16} 
+                          color={isLowStock ? "#dc3545" : "#28a745"} 
+                        />
+                        <Text style={[
+                          styles.productStock, 
+                          { color: isLowStock ? "#dc3545" : "#28a745" }
+                        ]}>
+                          Stock: {stockLevel} units
+                        </Text>
+                      </View>
+                      {isLowStock && (
+                        <View style={styles.lowStockRow}>
+                          <Text style={styles.lowStockWarning}>⚠️ Low Stock</Text>
+                        </View>
+                      )}
+                      <Text style={styles.productAdded}>Added: {new Date().toLocaleDateString()}</Text>
+                    </View>
                   </View>
-                  <View style={styles.productMeta}>
-                    <Text style={styles.productType}>Type: {product.type}</Text>
-                    <Text style={styles.productAdded}>Added: {new Date().toLocaleDateString()}</Text>
+                  <View style={styles.productActions}>
+                    <TouchableOpacity 
+                      style={styles.editButton}
+                      onPress={() => openEditModal(product)}
+                    >
+                      <Feather name="edit-3" size={18} color="#3B82F6" />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteProduct(product.id)}
+                    >
+                      <AntDesign name="delete" size={18} color="#EF4444" />
+                    </TouchableOpacity>
                   </View>
                 </View>
-                <View style={styles.productActions}>
-                  <TouchableOpacity onPress={() => openEditModal(product)}>
-                    <Feather name="edit" size={20} color="#3498db" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleDeleteProduct(product.id)}>
-                    <AntDesign name="delete" size={20} color="#e74c3c" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <View style={styles.noProductsContainer}>
@@ -645,6 +745,18 @@ const ShopScreen = () => {
                 keyboardType="numeric"
                 value={editingProduct?.price || ''}
                 onChangeText={(text) => setEditingProduct({...editingProduct!, price: text})}
+                style={styles.input}
+                placeholderTextColor="#95a5a6"
+              />
+            </View>
+            
+            <View style={styles.inputContainer}>
+              <MaterialIcons name="inventory" size={20} color="#7F7F7F" style={styles.inputIcon} />
+              <TextInput
+                placeholder="Stock Quantity"
+                keyboardType="numeric"
+                value={editingProduct?.stock || ''}
+                onChangeText={(text) => setEditingProduct({...editingProduct!, stock: text})}
                 style={styles.input}
                 placeholderTextColor="#95a5a6"
               />
@@ -729,7 +841,7 @@ const ShopScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#F8FAFC",
   },
   scrollView: {
     flex: 1,
@@ -738,158 +850,218 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 20,
     backgroundColor: "#FFFFFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+    borderRadius: 24,
+  
   },
   farmerName: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1E293B",
     flex: 1,
     textAlign: "center",
+    fontFamily: "Inter-Bold",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F9F9F9",
+    backgroundColor: "#F8FAFC",
   },
   loadingText: {
     marginTop: 16,
-    color: "#4CAF50",
+    color: "#059669",
     fontSize: 16,
+    fontWeight: "600",
+    fontFamily: "Inter-SemiBold",
   },
   createShopCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 24,
+    borderRadius: 24,
+    padding: 24,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 28,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: "rgba(5, 150, 105, 0.1)",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginHorizontal: 16,
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginHorizontal: 20,
     marginBottom: 16,
+    marginTop: 8,
+    fontFamily: "Inter-Bold",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    paddingHorizontal: 18,
     marginBottom: 16,
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    height: 50,
-    color: "#333",
-    fontSize: 16,
-  },
-  picker: {
-    flex: 1,
-    height: 60,
-    color: "#333",
-  },
-  shopCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 2,
   },
-  shopIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#E8F5E9",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
+  inputIcon: {
+    marginRight: 12,
+    color: "#64748B",
   },
-  shopName: {
+  input: {
     flex: 1,
+    height: 56,
+    color: "#1E293B",
     fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+    fontWeight: "500",
+    fontFamily: "Inter-Medium",
+  },
+  picker: {
+    flex: 1,
+    height: 56,
+    color: "#1E293B",
+  },
+  shopCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    marginBottom: 12,
+    marginHorizontal: 20,
+    borderRadius: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.08)',
+  },
+  shopInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  shopIcon: {
+    marginRight: 16,
+    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+    padding: 12,
+    borderRadius: 16,
+  },
+  shopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(33, 150, 243, 0.2)',
+  },
+  locationButtonText: {
+    color: '#2196F3',
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
   },
   addProductCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 24,
+    borderRadius: 24,
+    padding: 24,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 28,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: "rgba(5, 150, 105, 0.1)",
   },
   primaryButton: {
-    backgroundColor: "#4CAF50",
-    borderRadius: 12,
-    height: 50,
+    backgroundColor: "#059669",
+    borderRadius: 16,
+    height: 56,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 12,
+    shadowColor: "#059669",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   uploadButton: {
-    backgroundColor: "#3498db",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginLeft: 8,
+    backgroundColor: "#3B82F6",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginLeft: 12,
+    shadowColor: "#3B82F6",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   uploadButtonText: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
+    fontFamily: "Inter-Bold",
   },
   buttonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    fontFamily: "Inter-Bold",
   },
   productCard: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "rgba(5, 150, 105, 0.08)",
   },
   productImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    marginRight: 16,
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    marginRight: 20,
+    backgroundColor: "#F1F5F9",
   },
   productInfo: {
     flex: 1,
@@ -900,81 +1072,118 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   productName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 6,
+    fontFamily: "Inter-Bold",
   },
   productPrice: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#4CAF50",
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#059669",
+    fontFamily: "Inter-Bold",
   },
   productType: {
     fontSize: 14,
-    color: "#7F7F7F",
-    marginTop: 4,
-    fontWeight: "bold"
+    color: "#64748B",
+    marginTop: 6,
+    fontWeight: "600",
+    fontFamily: "Inter-SemiBold",
+    textTransform: "capitalize",
   },
   productActions: {
     flexDirection: 'column',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingLeft: 10,
+    paddingLeft: 16,
+    gap: 12,
+  },
+  editButton: {
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
   },
   listContent: {
-    paddingBottom: 16,
+    paddingBottom: 20,
   },
   chartCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 24,
+    borderRadius: 24,
+    padding: 24,
+    marginHorizontal: 20,
+    marginBottom: 28,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: "rgba(5, 150, 105, 0.1)",
   },
   chartTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1E293B",
     textAlign: "center",
-    marginBottom: 16,
-    marginTop: 24,
+    marginBottom: 20,
+    marginTop: 28,
+    fontFamily: "Inter-Bold",
   },
   noDataContainer: {
     alignItems: "center",
-    paddingVertical: 40,
+    paddingVertical: 48,
   },
   noDataText: {
-    fontSize: 14,
-    color: "#95a5a6",
+    fontSize: 15,
+    color: "#64748B",
     textAlign: "center",
     marginTop: 16,
+    fontWeight: "500",
+    fontFamily: "Inter-Medium",
+    lineHeight: 22,
   },
   noProductsContainer: {
     alignItems: "center",
-    paddingVertical: 40,
-    marginHorizontal: 16,
+    paddingVertical: 48,
+    marginHorizontal: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
   },
   noProductsText: {
-    fontSize: 14,
-    color: "#95a5a6",
+    fontSize: 15,
+    color: "#64748B",
     textAlign: "center",
     marginTop: 16,
+    fontWeight: "500",
+    fontFamily: "Inter-Medium",
+    lineHeight: 22,
   },
   footerSpacer: {
-    height: 80,
+    height: 100,
   },
   backButton: {
-    padding: 8,
+    padding: 12,
+    backgroundColor: "rgba(5, 150, 105, 0.1)",
+    borderRadius: 16,
   },
   productsContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 0,
+    paddingBottom: 20,
   },
   priceContainer: {
     flexDirection: 'row',
@@ -983,93 +1192,173 @@ const styles = StyleSheet.create({
   },
   productUnit: {
     fontSize: 14,
-    color: '#95a5a6',
+    color: '#64748B',
     marginLeft: 4,
+    fontWeight: "500",
+    fontFamily: "Inter-Medium",
   },
   productMeta: {
     flexDirection: 'column',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    gap: 4,
   },
   productAdded: {
     fontSize: 12,
-    color: '#95a5a6',
+    color: '#94A3B8',
+    fontWeight: "500",
+    fontFamily: "Inter-Medium",
   },
   // Modal styles
   centeredView: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalView: {
     margin: 20,
     backgroundColor: "white",
-    borderRadius: 20,
-    padding: 25,
+    borderRadius: 24,
+    padding: 28,
     width: '90%',
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 2
+      height: 12
     },
     shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5
+    shadowRadius: 16,
+    elevation: 16,
+    borderWidth: 1,
+    borderColor: "rgba(5, 150, 105, 0.1)",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 24,
     textAlign: 'center',
-    color: '#333',
+    color: '#1E293B',
+    fontFamily: "Inter-Bold",
   },
   modalButtonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 24,
+    gap: 12,
   },
   modalButton: {
-    borderRadius: 10,
-    padding: 12,
-    elevation: 2,
-    width: '48%',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 4,
+    flex: 1,
     alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   cancelButton: {
-    backgroundColor: '#e74c3c',
+    backgroundColor: '#EF4444',
   },
   updateButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#059669',
   },
   modalButtonText: {
     color: 'white',
-    fontWeight: 'bold',
+    fontWeight: '700',
     fontSize: 16,
+    fontFamily: "Inter-Bold",
   },
   // Image upload styles
   imagePreviewContainer: {
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: 20,
     alignItems: 'center',
   },
   imagePreview: {
-    width: 150,
-    height: 150,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    width: 160,
+    height: 160,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(5, 150, 105, 0.2)',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   removeImageButton: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  shopName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1E293B',
+    flex: 1,
+    fontFamily: "Inter-Bold",
+  },
+  // Enhanced Stock-related styles
+  lowStockCard: {
+    backgroundColor: '#FEF2F2', // Light red background for low stock
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  normalStockCard: {
+    backgroundColor: '#F0FDF4', // Light green background for normal stock
+    borderLeftWidth: 4,
+    borderLeftColor: '#059669',
+    borderWidth: 1,
+    borderColor: 'rgba(5, 150, 105, 0.2)',
+  },
+  stockContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    marginBottom: 4,
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  productStock: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Inter-Bold',
+  },
+  lowStockWarning: {
+    fontSize: 11,
+    color: '#EF4444',
+    fontWeight: '800',
+    fontFamily: 'Inter-Bold',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    textAlign: 'center',
+  },
+  lowStockRow: {
+    width: '100%',
+    marginTop: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(239, 68, 68, 0.2)',
   },
 });
 
