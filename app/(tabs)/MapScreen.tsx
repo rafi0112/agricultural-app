@@ -118,7 +118,7 @@ const MapScreen = ({ navigation, route }: { navigation: any; route: any }) => {
     return (
       <SafeScreen style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#059669" />
+          <ActivityIndicator size="large" color="#4CAF50" />
           <Text style={styles.loadingText}>Getting location...</Text>
         </View>
       </SafeScreen>
@@ -132,8 +132,6 @@ const MapScreen = ({ navigation, route }: { navigation: any; route: any }) => {
           style={styles.map}
           initialRegion={location}
           onRegionChange={!readOnly ? setLocation : undefined}
-          showsUserLocation={true}
-          showsMyLocationButton={false}
         >
           <Marker
             coordinate={{
@@ -142,7 +140,6 @@ const MapScreen = ({ navigation, route }: { navigation: any; route: any }) => {
             }}
             title="Shop Location"
             description={readOnly ? "Shop's saved location" : "Drag map to adjust location"}
-            pinColor="#059669"
           />
         </MapView>
         
@@ -164,7 +161,7 @@ const MapScreen = ({ navigation, route }: { navigation: any; route: any }) => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#fff',
   },
   container: {
     flex: 1,
@@ -175,43 +172,40 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
+    bottom: 50,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     backgroundColor: 'transparent',
+    paddingHorizontal: 20,
   },
   saveButton: {
-    backgroundColor: '#059669',
-    paddingHorizontal: 32,
-    paddingVertical: 18,
-    borderRadius: 16,
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    backgroundColor: 'rgba(76, 175, 80, 0.9)', // Making the green color slightly transparent
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 25,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
     width: '100%',
     alignItems: 'center',
   },
   saveButtonText: {
-    color: '#FFFFFF',
+    color: 'white',
     fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Inter-Bold',
+    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 10,
     fontSize: 16,
-    color: '#059669',
-    fontWeight: '600',
-    fontFamily: 'Inter-SemiBold',
+    color: '#333',
   },
 });
 
