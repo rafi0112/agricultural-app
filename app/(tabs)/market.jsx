@@ -289,9 +289,16 @@ const fetchWeatherData = async () => {
           legendFontSize: 12,
         }));
         
+        // Sort products by likes (descending order - most liked first)
+        const sortedProducts = productsData.sort((a, b) => {
+          const likesA = a.likes || 0;
+          const likesB = b.likes || 0;
+          return likesB - likesA;
+        });
+        
         setChartData(pieData);
-        setProducts(productsData);
-        setFilteredProducts(productsData);
+        setProducts(sortedProducts);
+        setFilteredProducts(sortedProducts);
         setLoading(false);
         setRefreshing(false);
         
@@ -426,12 +433,22 @@ const fetchWeatherData = async () => {
 
   const applyFilter = (type) => {
     setSelectedType(type);
+    
+    let filteredProducts;
     if (type === 'all') {
-      setFilteredProducts(products);
+      filteredProducts = products;
     } else {
-      const filtered = products.filter(product => product.type === type);
-      setFilteredProducts(filtered);
+      filteredProducts = products.filter(product => product.type === type);
     }
+    
+    // Sort filtered products by likes (descending order - most liked first)
+    const sortedFilteredProducts = filteredProducts.sort((a, b) => {
+      const likesA = a.likes || 0;
+      const likesB = b.likes || 0;
+      return likesB - likesA;
+    });
+    
+    setFilteredProducts(sortedFilteredProducts);
     setFilterModalVisible(false);
   };
 
@@ -479,9 +496,13 @@ const fetchWeatherData = async () => {
               <MaterialIcons name="star" size={16} color="#FFD700" />
               <Text style={styles.ratingText}>4.5</Text>
             </View>
-            <TouchableOpacity style={styles.favoriteButton}>
+            <View style={styles.likesContainer}>
+              <Feather name="heart" size={16} color="#DC3545" />
+              <Text style={styles.likesText}>{item.likes || 0}</Text>
+            </View>
+            {/* <TouchableOpacity style={styles.favoriteButton}>
               <Feather name="heart" size={18} color="#DC3545" />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
       </View>
@@ -2005,11 +2026,12 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
+    gap: 8,
   },
   favoriteButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#FEF2F2',
     justifyContent: 'center',
     alignItems: 'center',
@@ -2146,6 +2168,21 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 14,
     color: '#92400E',
+    marginLeft: 6,
+    fontWeight: '600',
+    fontFamily: 'Inter-SemiBold',
+  },
+  likesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  likesText: {
+    fontSize: 14,
+    color: '#DC2626',
     marginLeft: 6,
     fontWeight: '600',
     fontFamily: 'Inter-SemiBold',
